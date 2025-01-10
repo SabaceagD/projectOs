@@ -1,0 +1,21 @@
+Final Standings:
+Car 16 (Charles Leclerc): Total Time = 1186.811, Best Lap = 80.003 
+Car 77 (Valtteri Bottas): Total Time = 1224.533, Best Lap = 87.143 
+Car 2 (Logan Sargeant): Total Time = 1228.404, Best Lap = 85.708 
+Car 22 (Yuki Tsunoda): Total Time = 1251.338, Best Lap = 91.306 
+Car 44 (Lewis Hamilton): Total Time = 1253.450, Best Lap = 90.566 
+Car 14 (Fernando Alonso): Total Time = 1268.608, Best Lap = 91.523 
+Car 31 (Esteban Ocon): Total Time = 1283.185, Best Lap = 85.363 
+Car 18 (Lance Stroll): Total Time = 1301.034, Best Lap = 93.681 
+Car 4 (Lando Norris): Total Time = 1304.377, Best Lap = 99.708 
+Car 81 (Oscar Piastri): Total Time = 1323.878, Best Lap = 90.951 
+Car 27 (Nico Hülkenberg): Total Time = 969.196, Best Lap = 90.448 (Eliminated)
+Car 11 (Sergio Pérez): Total Time = 969.651, Best Lap = 100.414 (Eliminated)
+Car 20 (Kevin Magnussen): Total Time = 975.358, Best Lap = 95.709 (Eliminated)
+Car 1 (Max Verstappen): Total Time = 977.592, Best Lap = 94.791 (Eliminated)
+Car 55 (Carlos Sainz Jr): Total Time = 988.343, Best Lap = 95.517 (Eliminated)
+Car 23 (Alexander Albon): Total Time = 546.929, Best Lap = 97.496 (Eliminated)
+Car 63 (George Russell): Total Time = 547.866, Best Lap = 104.363 (Eliminated)
+Car 10 (Pierre Gasly): Total Time = 552.016, Best Lap = 98.388 (Eliminated)
+Car 3 (Daniel Ricciardo): Total Time = 553.518, Best Lap = 100.217 (Eliminated)
+Car 24 (Zhou Guanyu): Total Time = 583.897, Best Lap = 101.766 (Eliminated)
