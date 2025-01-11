@@ -14,6 +14,7 @@
 #define CARS_PER_SESSION 5
 #define PIPE_READ 0
 #define PIPE_WRITE 1
+#define MAX_LINE_LENGTH 256
 
 typedef struct {
     int car_number;
@@ -25,6 +26,8 @@ typedef struct {
     double total_time;
     const char *driver;
     int points;
+    int isOut;
+    int isPit;
 } Car;
 
 const char* driver_names[] = {
@@ -37,7 +40,7 @@ const char* driver_names[] = {
 const double circuits_length[]={5.412,6.174,5.278,6.003,5.41,3.337,4.675,4.361,4.318,5.891,4.381,7.004,4.259,5.793,5.063,5.807,5.418,5.513,4.304,4.309,6.12,5.281};
 const char* circuits[] = {"Bahrain International Circuit","Bahrain","Jeddah Corniche Circuit","Albert Park Circuit","Baku City Circuit","Miami International Autodrome","Circuit de Monaco","Circuit de Barcelona-Catalunya","Circuit Gilles-Villeneuve","Red Bull Ring","Silverstone Circuit","Hungaroring","Circuit de Spa-Francorchamps","Circuit Zandvoort","Autodromo Nazionale di Monza","Marina Bay Street Circuit","Suzuka International Racing Course","Losail International Circuit","Circuit of the Americas","Autódromo Hermanos Rodríguez","Autódromo José Carlos Pace","Las Vegas Street Circuit","Yas Marina Circuit"};
 const int car_num[]={1, 11, 44, 63, 16, 55, 4, 81, 14, 18, 10, 31, 23, 2, 22, 3, 77, 24, 20, 27};
-int listeCars[20];
+
 
 double generateRandomTime() {
     int seconds = rand() % 21 + 25; // Random seconds between 25 and 45
@@ -143,6 +146,7 @@ void initialize_cars(Car cars[]) {
         cars[i].total_time = 0.0;
         cars[i].points = 0;
         cars[i].isOut=0;
+        cars[i].isPit=0;
     }
 }
 void save_points(Car cars[], int size) {
@@ -159,7 +163,59 @@ void save_points(Car cars[], int size) {
     fclose(file);
     printf("Points saved successfully to points.txt.\n");
 }
+void save_qualification(Car cars[], int size){
+    FILE *file = fopen("points.txt", "w");
+    if (file == NULL) {
+        perror("Error");
+        exit(1);
+    }
 
+    for (int i = 0; i < size; i++) {
+        fprintf(file, "%d\n", cars[i].car_number);
+    }
+
+    fclose(file);
+}
+void read_qualif(Car cars[], int size) {
+    FILE *file = fopen("qualif.txt", "r");
+    if (file == NULL) {
+        perror("Error");
+        for (int i = 0; i < size; i++) {
+            cars[i].points = 0;
+        }
+        return;
+    }
+
+    int car_number, points;
+    while (fscanf(file, "%d %d", &car_number, &points) == 2) {
+        for (int i = 0; i < size; i++) {
+            if (cars[i].car_number == car_number) {
+                cars[i].points = points;
+                break;
+            }
+        }
+    }
+    fclose(file);
+}
+void extractCarOrder(const char *filename, int car_order[], int *size) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(1);
+    }
+    char line[MAX_LINE_LENGTH];
+    *size = 0;
+    fgets(line, MAX_LINE_LENGTH, file);
+    while (fgets(line, MAX_LINE_LENGTH, file) != NULL) {
+        int car_number;
+        if (sscanf(line, "Car %d", &car_number) == 1) {
+            car_order[*size] = car_number;
+            (*size)++;
+        }
+    }
+
+    fclose(file);
+}
 void read_points(Car cars[], int size) {
     FILE *file = fopen("points.txt", "r");
     if (file == NULL) {
@@ -183,13 +239,13 @@ void read_points(Car cars[], int size) {
     fclose(file);
     printf("Points loaded successfully from points.txt.\n");
 }
-void seance_essai(Car cars[],int session) {
-    printf("\nSimulating %d session:\n", session);
+void seance_essai(int session) {
+    Car cars[20];
+    initialize_cars(cars);
     for (int lap = 0; lap < 60; lap++) {
         printf("\nLap %d Results:\n", lap + 1);
         int pipefds[2];
         pipe(pipefds);
-
         for (int i = 0; i < NUM_CARS; i++) {
             pid_t pid = fork();
             if (pid == 0) {
@@ -197,6 +253,9 @@ void seance_essai(Car cars[],int session) {
                 cars[i].sector1 = generateRandomTime();
                 cars[i].sector2 = generateRandomTime();
                 cars[i].sector3 = generateRandomTime();
+                if(rand()%100<2){
+                    cars[i].isPit=1;
+                    cars[i].sector3 +=25;}
                 cars[i].current_lap = cars[i].sector1 + cars[i].sector2 + cars[i].sector3;
                 cars[i].total_time += cars[i].current_lap;
                 if (cars[i].current_lap < cars[i].best_lap_time) {
@@ -210,19 +269,15 @@ void seance_essai(Car cars[],int session) {
         for (int i = 0; i < NUM_CARS; i++) {
             wait(NULL);
         }
-
         close(pipefds[PIPE_WRITE]);
-
         for (int i = 0; i < NUM_CARS; i++) {
             read(pipefds[PIPE_READ], &cars[i], sizeof(Car));
         }
-
         close(pipefds[PIPE_READ]);
-
         sortCarsByCurrent(cars, NUM_CARS);
         for (int i = 0; i < NUM_CARS; i++) {
             double timeDifference = (i == 0) ? 0.0 : cars[i].current_lap - cars[i-1].current_lap;
-            printf("Car %d (%s): Lap Time = %.3f, Best Lap = %.3f, Total Time = %.3f",
+            printf("Car %d (%s): Lap Time = %.3f, Best Lap = %.3f, Total Time = %.3f ",
                    cars[i].car_number, cars[i].driver,
                    cars[i].current_lap, cars[i].best_lap_time, cars[i].total_time);
             if (i > 0) {
@@ -230,103 +285,75 @@ void seance_essai(Car cars[],int session) {
             }
             printf("\n");
         }
-        sortCarsByBest(cars, NUM_CARS);
-        printf("Sceance-Essai P%d Classement Final",session);
+    }
+    sortCarsByBest(cars, NUM_CARS);
+        printf("\n Sceance-Essai P%d Classement Final \n",session);
         for(int i = 0; i < NUM_CARS; i++) {
-            printf("Car %d (%s): Best Lap = %.3f, Total Time = %.3f",
+            printf("Car %d (%s): Best Lap = %.3f, Total Time = %.3f \n",
                    cars[i].car_number, cars[i].driver,cars[i].best_lap_time, cars[i].total_time);
         }
-        sleep(1);
-    }
 }
-void coruse_dimanche(){
-    Car cars[NUM_CARS];
-    initialize_cars(cars);
-    int choice;
-    printf("Please type 0 to start fresh or 1 to pick up where you left: ");
-    scanf("%d", &choice);
-    if(choice==0){delete_points();}
-    else{read_points(cars, NUM_CARS);}
-    course(cars);
-    save_points(cars, NUM_CARS);
-}
-void sprint(){
-    Car cars[NUM_CARS];
-    initialize_cars(cars);
-    int choice;
-    printf("Please type 0 to start fresh or 1 to pick up where you left: ");
-    scanf("%d", &choice);
-    if(choice==0){delete_points();}
-    else{read_points(cars, NUM_CARS);}
-    sprint(cars);
-    save_points(cars, NUM_CARS);
-}
-void runSession(Car cars[], int num_cars, int num_laps, int session) {
-    int pipes[num_cars][2];
-
-    for (int i = 0; i < num_cars; i++) {
-        if (cars[i].isOut == 1) continue;
-        pipe(pipes[i]);
-
-        if (fork() == 0) {
-            close(pipes[i][0]);
-            srand(time(NULL) ^ (getpid() << 16)); // Unique random seed
-
-            double session_time = 0.0;
-
-            for (int lap = 0; lap < num_laps; lap++) {
-                cars[i].sector1 = generateRandomTime();
-                cars[i].sector2 = generateRandomTime();
-                cars[i].sector3 = generateRandomTime();
-                cars[i].current_lap = cars[i].sector1 + cars[i].sector2 + cars[i].sector3;
-                session_time += cars[i].current_lap;
-
-                if (cars[i].current_lap < cars[i].best_lap_time) {
-                    cars[i].best_lap_time = cars[i].current_lap;
-                }
-            }
-
-            cars[i].total_time += session_time;
-            write(pipes[i][1], &cars[i], sizeof(Car));
-            close(pipes[i][1]);
-            exit(0);
-        }
-        close(pipes[i][1]); 
-    }
-    for (int i = 0; i < num_cars; i++) {
-        if (cars[i].isOut == 1) continue;
-        read(pipes[i][0], &cars[i], sizeof(Car));
-        close(pipes[i][0]);
-    }
-    sortCarsByTotalTime(cars, num_cars);
-    if (session < NUM_SESSIONS) {
-        int eliminated = 0;
-        for (int i = num_cars - 1; i >= 0 && eliminated < CARS_PER_SESSION; i--) {
-            if (cars[i].isOut == 0) {
-                cars[i].isOut = 1;
-                eliminated++;
-            }
-        }
-    }
-    printf("\nQ%d Results:\n", session);
-    for (int i = 0; i < num_cars; i++) {
-        printf("Car %d (%s): Total Time = %.3f, Best Lap = %.3f %s\n",
-               cars[i].car_number, cars[i].driver, cars[i].total_time, cars[i].best_lap_time,
-               cars[i].isOut ? "(Eliminated)" : "");
-    }
-}
-
 void qualifications(int a,int b,int c) {
     Car cars[NUM_CARS];
     srand(time(NULL));
-    initialize_cars();
+    initialize_cars(cars);
     printf("\nSimulating Qualifications:\n");
+    int pipes[NUM_CARS][2];
+    int num_laps[3]={a,b,c};
+    for(int c=0;c<3;c++){
+        for (int i = 0; i < NUM_CARS; i++) {
+            if (cars[i].isOut == 1) continue;
+            pipe(pipes[i]);
 
-    runSession(cars, NUM_CARS, a, 1); // Q1: 22 ou 12 laps
-    runSession(cars, NUM_CARS, b, 2); // Q2: 18 ou 8 laps
-    runSession(cars, NUM_CARS, c, 3); // Q3: 12 ou 6 laps
-    sortCarsByTotalTime(cars, NUM_CARS);
-    FILE *file = fopen("qualifications_results.txt", "w");
+            if (fork() == 0) {
+                close(pipes[i][0]);
+                srand(time(NULL) ^ (getpid() << 16)); // Unique random seed
+                double session_time = 0.0;
+                for (int lap = 0; lap < num_laps[c]; lap++) {
+                    cars[i].sector1 = generateRandomTime();
+                    cars[i].sector2 = generateRandomTime();
+                    cars[i].sector3 = generateRandomTime();
+                    if(rand()%100<2){
+                        cars[i].isPit=1;
+                        cars[i].sector3 +=25;}
+                    cars[i].current_lap = cars[i].sector1 + cars[i].sector2 + cars[i].sector3;
+                    session_time += cars[i].current_lap;
+
+                    if (cars[i].current_lap < cars[i].best_lap_time) {
+                        cars[i].best_lap_time = cars[i].current_lap;
+                    }
+                }
+
+                cars[i].total_time += session_time;
+                write(pipes[i][1], &cars[i], sizeof(Car));
+                close(pipes[i][1]);
+                exit(0);
+            }
+            close(pipes[i][1]); 
+        }
+        for (int i = 0; i < NUM_CARS; i++) {
+            if (cars[i].isOut == 1) continue;
+            read(pipes[i][0], &cars[i], sizeof(Car));
+            close(pipes[i][0]);
+        }
+        sortCarsByTotalTime(cars, NUM_CARS);
+        if (c < 2) {
+            int eliminated = 0;
+            for (int i = NUM_CARS - 1; i >= 0 && eliminated < CARS_PER_SESSION; i--) {
+                if (cars[i].isOut == 0) {
+                    cars[i].isOut = 1;
+                    eliminated++;
+                }
+            }
+        }
+        printf("\nQ%d Results:\n", c);
+        for (int i = 0; i < NUM_CARS; i++) {
+            printf("Car %d (%s): Total Time = %.3f, Best Lap = %.3f %s\n",
+               cars[i].car_number, cars[i].driver, cars[i].total_time, cars[i].best_lap_time,
+               cars[i].isOut ? "(Eliminated)" : "");
+        }
+        sortCarsByTotalTime(cars, NUM_CARS);
+        FILE *file = fopen("qualifications_results.txt", "w");
     if (file == NULL) {
         perror("Error opening file for writing");
         exit(1);
@@ -341,11 +368,21 @@ void qualifications(int a,int b,int c) {
 
     fclose(file);
     printf("\nResults saved to qualifications_results.txt\n");
+    }
 }
-void sprint(Car cars[]) {
-    printf("\nSimulating %s session:\n", session_name);
 
-    for (int lap = 0; lap < 25; lap++) {
+void sprint(int circ) {
+    Car cars[NUM_CARS];
+    initialize_cars(cars);
+    int choice;
+    int car_order[NUM_CARS];
+    int size;
+    extractCarOrder("qualifications_results.txt", car_order, &size);
+    printf("Please type 0 to start fresh or 1 to pick up where you left: ");
+    scanf("%d", &choice);
+    if(choice==0){delete_points();}
+    else{read_points(cars, NUM_CARS);}
+    for (int lap = 0; lap < (100/circuits_length[circ]); lap++) {
         printf("\nLap %d Results:\n", lap + 1);
         int pipefds[2];
         pipe(pipefds);
@@ -357,6 +394,9 @@ void sprint(Car cars[]) {
                 cars[i].sector1 = generateRandomTime();
                 cars[i].sector2 = generateRandomTime();
                 cars[i].sector3 = generateRandomTime();
+                if(rand()%100<2){
+                    cars[i].isPit=1;
+                    cars[i].sector3 +=25;}
                 cars[i].current_lap = cars[i].sector1 + cars[i].sector2 + cars[i].sector3;
                 cars[i].total_time += cars[i].current_lap;
                 if (cars[i].current_lap < cars[i].best_lap_time) {
@@ -387,18 +427,25 @@ void sprint(Car cars[]) {
             }
             printf("\n");
         }
-        sleep(1);
     }
+    sortCarsByTotalTime(cars, NUM_CARS);
     int pointDistribution[] = {25, 20, 15, 10, 8, 6, 5, 3, 2, 1};
     for (int i = 0; i < 10 && i < NUM_CARS; i++) {
         cars[i].points += pointDistribution[i];
         printf("Car %d (%s): Best Lap = %.3f, Points = %d\n",
                cars[i].car_number, cars[i].driver, cars[i].best_lap_time, cars[i].points);
     }
+    save_points(cars, NUM_CARS);
 }
-void course(Car cars[]) {
+void course(int circ) {
+    Car cars[NUM_CARS];
+    initialize_cars(cars);
+    int choice;
+    printf("Please type 0 to start fresh or 1 to pick up where you left: ");
+    scanf("%d", &choice);
+    if(choice==0){delete_points();}
+    else{read_points(cars, NUM_CARS);}
     printf("\nSimulating session:\n");
-
     for (int lap = 0; lap < 55; lap++) {
         printf("\nLap %d Results:\n", lap + 1);
         int pipefds[2];
@@ -441,25 +488,28 @@ void course(Car cars[]) {
             }
             printf("\n");
         }
-        sleep(1);
     }
+    sortCarsByTotalTime(cars, NUM_CARS);
     int pointDistribution[] = {25, 20, 15, 10, 8, 6, 5, 3, 2, 1};
     for (int i = 0; i < 10 && i < NUM_CARS; i++) {
         cars[i].points += pointDistribution[i];
         printf("Car %d (%s): Best Lap = %.3f, Points = %d\n",
                cars[i].car_number, cars[i].driver, cars[i].best_lap_time, cars[i].points);
     }
+    save_points(cars, NUM_CARS);
 }
+
 void championship(int a, int b, int c) {
     int stop_program = 0;
     for (int i = a; i < NUM_CHAMPIONATS && !stop_program; i++) {
+        a++;
         if (i % 2 == 0) { // Type 1 Championship
             for (int j = b; j < 5; j++) {
                 if (j == 0){ seance_essai(1);}
                 else if (j == 1){ seance_essai(2);}
                 else if (j == 2){seance_essai(3);}
                 else if (j == 3){qualifications(22,18,12);}
-                else if (j == 4){coruse_dimanche()}
+                else if (j == 4){course(a);}
 
                 save_to_file(i, j, 0);
                 if (ask() == 1) {
@@ -470,11 +520,11 @@ void championship(int a, int b, int c) {
             b = 0;
         } else { // Type 2 Championship
             for (int j = b; j < 5; j++) {
-                if (j == 0) seance_essai(1,);
-                else if (j == 1) qualifications(12,8,6);
-                else if (j == 2) sprint();
-                else if (j == 3) qualifications(22,18,12);
-                else if (j == 4) course_dimanche();
+                if (j == 0) {seance_essai(1);}
+                else if (j == 1) {qualifications(12,8,6);}
+                else if (j == 2) {sprint(a);}
+                else if (j == 3) {qualifications(22,18,12);}
+                else if (j == 4) {course(a);}
 
                 save_to_file(i, j, 0);
                 if (ask() == 1) {
